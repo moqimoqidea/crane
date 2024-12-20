@@ -4,7 +4,6 @@ import (
 	"time"
 
 	analysisv1alph1 "github.com/gocrane/api/analysis/v1alpha1"
-	"github.com/gocrane/crane/pkg/oom"
 	"github.com/gocrane/crane/pkg/recommendation/config"
 	"github.com/gocrane/crane/pkg/recommendation/recommender"
 	"github.com/gocrane/crane/pkg/recommendation/recommender/apis"
@@ -25,7 +24,6 @@ type ResourceRecommender struct {
 	MemMarginFraction        string
 	MemTargetUtilization     string
 	MemHistoryLength         string
-	oomRecorder              oom.Recorder
 	OOMProtection            bool
 	OOMHistoryLength         time.Duration
 	OOMBumpRatio             float64
@@ -35,6 +33,11 @@ type ResourceRecommender struct {
 	CpuHistogramMaxValue     string
 	MemHistogramBucketSize   string
 	MemHistogramMaxValue     string
+	HistoryCompletionCheck   bool
+}
+
+func init() {
+	recommender.RegisterRecommenderProvider(recommender.ResourceRecommender, NewResourceRecommender)
 }
 
 func (rr *ResourceRecommender) Name() string {
@@ -42,7 +45,7 @@ func (rr *ResourceRecommender) Name() string {
 }
 
 // NewResourceRecommender create a new resource recommender.
-func NewResourceRecommender(recommender apis.Recommender, recommendationRule analysisv1alph1.RecommendationRule, oomRecorder oom.Recorder) (*ResourceRecommender, error) {
+func NewResourceRecommender(recommender apis.Recommender, recommendationRule analysisv1alph1.RecommendationRule) (recommender.Recommender, error) {
 	recommender = config.MergeRecommenderConfigFromRule(recommender, recommendationRule)
 
 	cpuSampleInterval := recommender.GetConfigString("cpu-sample-interval", "1m")
@@ -87,6 +90,11 @@ func NewResourceRecommender(recommender apis.Recommender, recommendationRule ana
 	memHistogramBucketSize := recommender.GetConfigString("mem-histogram-bucket-size", "104857600")
 	memHistogramMaxValue := recommender.GetConfigString("mem-histogram-max-value", "104857600000")
 
+	historyCompletion, err := recommender.GetConfigBool("history-completion-check", false)
+	if err != nil {
+		return nil, err
+	}
+
 	return &ResourceRecommender{
 		*base.NewBaseRecommender(recommender),
 		cpuSampleInterval,
@@ -99,7 +107,6 @@ func NewResourceRecommender(recommender apis.Recommender, recommendationRule ana
 		memMarginFraction,
 		memTargetUtilization,
 		memHistoryLength,
-		oomRecorder,
 		oomProtectionBool,
 		oomHistoryLengthDuration,
 		OOMBumpRatioFloat,
@@ -109,5 +116,6 @@ func NewResourceRecommender(recommender apis.Recommender, recommendationRule ana
 		cpuHistogramMaxValue,
 		memHistogramBucketSize,
 		memHistogramMaxValue,
+		historyCompletion,
 	}, nil
 }

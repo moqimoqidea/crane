@@ -3,6 +3,7 @@ package prometheus_adapter
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/fsnotify/fsnotify"
 	corev1 "k8s.io/api/core/v1"
@@ -42,19 +43,19 @@ func (pc *PrometheusAdapterConfigFetcher) Reconcile(ctx context.Context, req ctr
 	klog.V(4).Infof("Got prometheus adapter configmap %s", req.NamespacedName)
 
 	//get configmap content
-	cm := &corev1.ConfigMap{}
-	err := pc.Client.Get(ctx, req.NamespacedName, cm)
+	var cm corev1.ConfigMap
+	err := pc.Client.Get(ctx, req.NamespacedName, &cm)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
-
-	if cm == nil {
-		return ctrl.Result{}, fmt.Errorf("get configmap %s/%s failed", req.NamespacedName.Namespace, req.NamespacedName.Name)
 	}
 
 	cfg, err := config.FromYAML([]byte(cm.Data[pc.AdapterConfigMapKey]))
 	if err != nil {
 		klog.Errorf("Got metricsDiscoveryConfig failed[%s] %v", pc.AdapterConfigMapName, err)
+		SetMetricRulesError(true)
+		return ctrl.Result{}, nil
+	} else {
+		SetMetricRulesError(false)
 	}
 
 	err = FlushRules(*cfg, pc.RestMapper)
@@ -122,7 +123,7 @@ func (pc *PrometheusAdapterConfigFetcher) Reload() {
 			} else {
 				err = FlushRules(*metricsDiscoveryConfig, pc.RestMapper)
 				if err != nil {
-					klog.Errorf("Flush rules failed %v", err)
+					klog.Errorf("Flush rules failed [%v]", err)
 				}
 			}
 		case err, ok := <-watcher.Errors:
@@ -135,18 +136,22 @@ func (pc *PrometheusAdapterConfigFetcher) Reload() {
 }
 
 func FlushRules(metricsDiscoveryConfig config.MetricsDiscoveryConfig, mapper meta.RESTMapper) error {
+	var errStr []string
 	err := ParsingResourceRules(metricsDiscoveryConfig, mapper)
 	if err != nil {
-		return err
+		errStr = append(errStr, err.Error())
 	}
 	err = ParsingRules(metricsDiscoveryConfig, mapper)
 	if err != nil {
-		return err
+		errStr = append(errStr, err.Error())
 	}
 	err = ParsingExternalRules(metricsDiscoveryConfig, mapper)
 	if err != nil {
-		return err
+		errStr = append(errStr, err.Error())
 	}
 
-	return nil
+	if len(errStr) > 0 {
+		return fmt.Errorf(strings.Join(errStr, ","))
+	}
+	return err
 }

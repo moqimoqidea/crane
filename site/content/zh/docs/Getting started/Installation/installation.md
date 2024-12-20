@@ -19,6 +19,10 @@ Crane 安装时间在10分钟左右，具体时间也依赖集群规模以及硬
 - Kubernetes 1.18+
 - Helm 3.1.0
 
+{{% alert color="warning" %}}
+如果你的 Kubernetes 版本 >= 1.26, 请参考 [PR](https://github.com/gocrane/crane/pull/839)
+{{% /alert %}}
+
 ## 安装流程
 
 ### 安装 Helm
@@ -65,18 +69,16 @@ Crane 的 Fadvisor 使用 Grafana 展示成本预估。安装 Grafana：
 
 {{< tabpane right=true >}}
 {{< tab header="Main" lang="en" >}}
-helm repo add grafana https://grafana.github.io/helm-charts
-helm install grafana --version 6.11.0 \
+helm install grafana  \
     -f https://raw.githubusercontent.com/gocrane/helm-charts/main/integration/grafana/override_values.yaml \
     -n crane-system \
-    --create-namespace grafana/grafana
+    --create-namespace https://github.com/grafana/helm-charts/releases/download/grafana-6.11.0/grafana-6.11.0.tgz
 {{< /tab >}}
 {{< tab header="Mirror" lang="en" >}}
-helm repo add grafana https://finops-helm.pkg.coding.net/gocrane/grafana
-helm install grafana --version 6.11.0 \
+helm install grafana  \
     -f https://gitee.com/finops/helm-charts/raw/main/integration/grafana/override_values.yaml \
     -n crane-system \
-    --create-namespace grafana/grafana
+    --create-namespace https://finops-generic.pkg.coding.net/gocrane/generic/grafana-6.11.0.tgz\?version\=latest
 {{< /tab >}}
 {{% /tabpane %}}
 
